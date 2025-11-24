@@ -1,0 +1,153 @@
+export type AnyFunction = (...arguments_: readonly any[]) => unknown;
+
+export type ThrottledFunction<F extends AnyFunction> = ((
+  ...args: Parameters<F>
+) => Promise<Awaited<ReturnType<F>>>) & {
+  /**
+   * Whether future function calls should be throttled and count towards throttling thresholds.
+   *
+   * @default true
+   */
+  isEnabled: boolean;
+
+  /**
+   * The number of queued items waiting to be executed.
+   *
+   * This can be useful for implementing queue management strategies, such as using a fallback when the queue is too full.
+   *
+   * @example
+   * ```
+   * import Throttle from '@se-oss/throttle';
+   *
+   * const throttle = Throttle({limit: 1, interval: 1000});
+   *
+   * const accurateData = throttle(() => fetch('https://accurate-api.example.com'));
+   * const roughData = () => fetch('https://rough-api.example.com');
+   *
+   * async function getData() {
+   * 	if (accurateData.queueSize >= 3) {
+   * 		return roughData(); // Queue full, use fallback
+   * 	}
+   *
+   * 	return accurateData();
+   * }
+   * ```
+   */
+  readonly queueSize: number;
+};
+
+export interface Options {
+  /**
+   * The maximum number of calls within an `interval`.
+   */
+  readonly limit: number;
+
+  /**
+   * The timespan for `limit` in milliseconds.
+   */
+  readonly interval: number;
+
+  /**
+   * Use a strict, more resource-intensive, throttling algorithm.
+   * The default algorithm uses a windowed approach that will work correctly in most cases,
+   * limiting the total number of calls at the specified limit per interval window.
+   * The strict algorithm throttles each call individually, ensuring the limit is not exceeded for any interval.
+   *
+   * @default false
+   */
+  readonly strict?: boolean;
+
+  /**
+   * Abort pending executions. When aborted, all unresolved promises are rejected with `signal.reason`.
+   *
+   * @example
+   * ```
+   * import Throttle from '@se-oss/throttle';
+   *
+   * const controller = new AbortController();
+   *
+   * const throttle = Throttle({
+   * 	limit: 2,
+   * 	interval: 1000,
+   * 	signal: controller.signal
+   * });
+   *
+   * const throttled = throttle(() => {
+   * 	console.log('Executing...');
+   * });
+   *
+   * await throttled();
+   * await throttled();
+   * controller.abort('aborted');
+   * await throttled();
+   * //=> Executing...
+   * //=> Executing...
+   * //=> Promise rejected with reason `aborted`
+   * ```
+   */
+  signal?: AbortSignal;
+
+  /**
+   * Get notified when function calls are delayed due to exceeding the `limit` of allowed calls within the given `interval`.
+   *
+   * The delayed call arguments are passed to the `onDelay` callback. Can be useful for monitoring the throttling efficiency.
+   *
+   * @example
+   * ```
+   * import Throttle from '@se-oss/throttle';
+   *
+   * const throttle = Throttle({
+   * 	limit: 2,
+   * 	interval: 1000,
+   * 	onDelay: (a, b) => {
+   * 		console.log(`Reached interval limit, call is delayed for ${a} ${b}`);
+   * 	},
+   * });
+   *
+   * const throttled = throttle((a, b) => {
+   * 	console.log(`Executing with ${a} ${b}...`);
+   * });
+   *
+   * await throttled(1, 2);
+   * await throttled(3, 4);
+   * await throttled(5, 6);
+   * //=> Executing with 1 2...
+   * //=> Executing with 3 4...
+   * //=> Reached interval limit, call is delayed for 5 6
+   * //=> Executing with 5 6...
+   * ```
+   */
+  readonly onDelay?: (...arguments_: readonly any[]) => void;
+
+  /**
+   * Calculate the weight/cost of each function call based on its arguments.
+   *
+   * The weight determines how much of the `limit` is consumed by each call.
+   * This is useful for rate limiting APIs that use point-based or cost-based limits,
+   * where different operations consume different amounts of the quota.
+   *
+   * By default, each call has a weight of `1`.
+   *
+   * @example
+   * ```
+   * import Throttle from '@se-oss/throttle';
+   *
+   * // Storyblok GraphQL API: 100 points per second
+   * // Each query costs 1 point for the connection plus 1 point per table
+   * const throttle = Throttle({
+   * 	limit: 100,
+   * 	interval: 1000,
+   * 	weight: numberOfTables => 1 + numberOfTables
+   * });
+   *
+   * const fetchData = throttle(numberOfTables => {
+   * 	// Fetch GraphQL data
+   * 	return fetch('...');
+   * });
+   *
+   * await fetchData(1); // Costs 2 points
+   * await fetchData(3); // Costs 4 points
+   * ```
+   */
+  readonly weight?: (...arguments_: readonly any[]) => number;
+}
