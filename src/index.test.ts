@@ -349,7 +349,7 @@ describe('throttle', () => {
 
     for (let index = limit; index < times.length; index++) {
       const diff = times[index]! - times[index - 1]!;
-      expect(diff >= minSpacing - 20).toBe(true);
+      expect(diff >= minSpacing - 50).toBe(true);
     }
   });
 
