@@ -1,12 +1,14 @@
-# @se-oss/throttle
+<h1 align="center">
+  <sup>@se-oss/throttle</sup>
+  <br>
+  <a href="https://github.com/shahradelahi/ts-throttle/actions/workflows/ci.yml"><img src="https://github.com/shahradelahi/ts-throttle/actions/workflows/ci.yml/badge.svg?branch=main&event=push" alt="CI"></a>
+  <a href="https://www.npmjs.com/package/@se-oss/throttle"><img src="https://img.shields.io/npm/v/@se-oss/throttle.svg" alt="NPM Version"></a>
+  <a href="/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat" alt="MIT License"></a>
+  <a href="https://bundlephobia.com/package/@se-oss/throttle"><img src="https://img.shields.io/bundlephobia/minzip/@se-oss/throttle" alt="npm bundle size"></a>
+  <a href="https://packagephobia.com/result?p=@se-oss/throttle"><img src="https://packagephobia.com/badge?p=@se-oss/throttle" alt="Install Size"></a>
+</h1>
 
-[![CI](https://github.com/shahradelahi/ts-throttle/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/shahradelahi/ts-throttle/actions/workflows/ci.yml)
-[![NPM Version](https://img.shields.io/npm/v/@se-oss/throttle.svg)](https://www.npmjs.com/package/@se-oss/throttle)
-[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat)](/LICENSE)
-![npm bundle size](https://img.shields.io/bundlephobia/minzip/@se-oss/throttle)
-[![Install Size](https://packagephobia.com/badge?p=@se-oss/throttle)](https://packagephobia.com/result?p=@se-oss/throttle)
-
-_@se-oss/throttle_ is a utility for rate-limiting function calls. It is designed for modern applications that require fine-grained control over asynchronous operations, offering features like strict mode, weighted throttling, and abort signals.
+_@se-oss/throttle_ is a utility for rate-limiting function calls, offering fine-grained control with features like strict mode, weighted throttling, and abort signals.
 
 ---
 
@@ -41,140 +43,77 @@ yarn add @se-oss/throttle
 
 ## 📖 Usage
 
-### Basic Throttling
+### Basic Usage
 
 Throttle a function to be called at most twice per second.
 
-```typescript
+```ts
 import { throttle } from '@se-oss/throttle';
 
-const now = Date.now();
+const throttled = throttle(async (id) => fetchData(id), {
+  limit: 2,
+  interval: 1000,
+});
 
-const throttled = throttle(
-  async (index: number) => {
-    const secDiff = ((Date.now() - now) / 1000).toFixed();
-    return `${index}: ${secDiff}s`;
-  },
-  {
-    limit: 2,
-    interval: 1000,
-  }
-);
-
-for (let index = 1; index <= 6; index++) {
-  (async () => {
-    console.log(await throttled(index));
-  })();
+for (let i = 1; i <= 6; i++) {
+  throttled(i).then(console.log);
 }
-//=> 1: 0s
-//=> 2: 0s
-//=> 3: 1s
-//=> 4: 1s
-//=> 5: 2s
-//=> 6: 2s
 ```
 
 ### Abort Signal
 
 Abort pending executions using an `AbortSignal`.
 
-```typescript
+```ts
 import { throttle } from '@se-oss/throttle';
 
 const controller = new AbortController();
-
-const throttled = throttle(
-  () => {
-    console.log('Executing...');
-  },
-  {
-    limit: 2,
-    interval: 1000,
-    signal: controller.signal,
-  }
-);
-
-await throttled();
-await throttled();
-controller.abort('aborted');
-await throttled();
-//=> Executing...
-//=> Executing...
-//=> Promise rejected with reason `aborted`
-```
-
-### onDelay
-
-Get notified when function calls are delayed.
-
-```typescript
-import { throttle } from '@se-oss/throttle';
-
-const throttled = throttle(
-  (a, b) => {
-    console.log(`Executing with ${a} ${b}...`);
-  },
-  {
-    limit: 2,
-    interval: 1000,
-    onDelay: (a, b) => {
-      console.log(`Call is delayed for ${a} ${b}`);
-    },
-  }
-);
-
-await throttled(1, 2);
-await throttled(3, 4);
-await throttled(5, 6);
-//=> Executing with 1 2...
-//=> Executing with 3 4...
-//=> Call is delayed for 5 6
-//=> Executing with 5 6...
-```
-
-### weight
-
-Use the `weight` option to assign a custom cost to each function call.
-
-```typescript
-import { throttle } from '@se-oss/throttle';
-
-// API allows 100 points per second.
-// Each call costs 1 point + 1 point per item.
-const throttled = throttle(
-  async (itemCount: number) => {
-    // Fetch data
-  },
-  {
-    limit: 100,
-    interval: 1000,
-    weight: (itemCount: number) => 1 + itemCount,
-  }
-);
-
-await throttled(10); // Costs 11 points
-await throttled(50); // Costs 51 points
-```
-
-### queueSize
-
-Check the number of queued items.
-
-```typescript
-import { throttle } from '@se-oss/throttle';
-
-const accurateData = throttle(() => fetch('...'), {
+const throttled = throttle(work, {
   limit: 1,
   interval: 1000,
+  signal: controller.signal,
 });
-const fallbackData = () => fetch('...');
 
-async function getData() {
-  if (accurateData.queueSize >= 5) {
-    return fallbackData(); // Use fallback when queue is full
-  }
+await throttled();
+controller.abort('stopped');
+await throttled(); // Rejects with 'stopped'
+```
 
-  return accurateData();
+### Delay Notifications
+
+Get notified when function calls are delayed due to limits.
+
+```ts
+const throttled = throttle(work, {
+  limit: 1,
+  interval: 1000,
+  onDelay: (...args) => console.log('Delayed:', ...args),
+});
+```
+
+### Weighted Throttling
+
+Assign custom costs to different function calls.
+
+```ts
+const throttled = throttle(fetchItems, {
+  limit: 100,
+  interval: 1000,
+  weight: (count) => 1 + count,
+});
+
+await throttled(10); // Costs 11 points
+```
+
+### Queue Management
+
+Monitor and manage the execution queue size.
+
+```ts
+const throttled = throttle(work, { limit: 1, interval: 1000 });
+
+if (throttled.queueSize < 5) {
+  await throttled();
 }
 ```
 
@@ -184,7 +123,7 @@ For all configuration options, please see [the API docs](https://www.jsdocs.io/p
 
 ## 🤝 Contributing
 
-Want to contribute? Awesome! To show your support is to star the project, or to raise issues on [GitHub](https://github.com/shahradelahi/ts-throttle)
+Want to contribute? Awesome! To show your support is to star the project, or to raise issues on [GitHub](https://github.com/shahradelahi/ts-throttle).
 
 Thanks again for your support, it is much appreciated! 🙏
 

@@ -1,3 +1,4 @@
+import delay from '@se-oss/delay';
 import { Abort } from 'abort-signal';
 
 import type { AnyFunction, Options, ThrottledFunction } from './typings';
@@ -67,8 +68,6 @@ export const throttle = <F extends AnyFunction>(
       return (async () => function_.apply(this, args))() as Promise<Awaited<ReturnType<F>>>;
     }
 
-    let timeoutId: NodeJS.Timeout;
-
     return new Promise((resolve, reject) => {
       let requestWeight = 1;
       if (resolvedOptions.weight) {
@@ -95,12 +94,12 @@ export const throttle = <F extends AnyFunction>(
       }
 
       const delayResult = getDelay(requestWeight);
-      const delay = typeof delayResult === 'number' ? delayResult : delayResult.delay;
+      const waitTime = typeof delayResult === 'number' ? delayResult : delayResult.delay;
       const tickRecord = typeof delayResult === 'object' ? delayResult.tickRecord : undefined;
 
-      const execute = () => {
+      const execute = (actualTime?: number) => {
         if (tickRecord) {
-          updateTickRecord(state, tickRecord, !!resolvedOptions.weight);
+          updateTickRecord(state, tickRecord, !!resolvedOptions.weight, actualTime);
         }
 
         try {
@@ -108,17 +107,30 @@ export const throttle = <F extends AnyFunction>(
         } catch (error) {
           reject(error);
         }
-
-        state.queue.delete(timeoutId);
       };
 
-      if (delay > 0) {
-        timeoutId = setTimeout(execute, delay);
-        state.queue.set(timeoutId, reject);
+      if (waitTime > 0) {
         try {
           resolvedOptions.onDelay?.(...args);
           // eslint-disable-next-line no-empty
         } catch {} // Ignore onDelay errors
+
+        const delayPromise = delay(waitTime, {
+          signal: resolvedOptions.signal,
+          stats: true,
+        });
+
+        state.queue.set(delayPromise, reject);
+
+        delayPromise
+          .then(() => {
+            state.queue.delete(delayPromise);
+            execute(Date.now());
+          })
+          .catch((error) => {
+            state.queue.delete(delayPromise);
+            reject(error);
+          });
       } else {
         execute();
       }
@@ -137,12 +149,8 @@ export const throttle = <F extends AnyFunction>(
     Abort.manageLifecycle({
       signal: resolvedOptions.signal,
       target: throttled, // The throttled function is the target object
-      onAbort: (reason) => {
-        // This is the cleanup logic that was previously inside `setupSignal`.
-        for (const timeout of state.queue.keys()) {
-          clearTimeout(timeout);
-          state.queue.get(timeout)?.(reason);
-        }
+      onAbort: () => {
+        // We just clear the references. Rejection is handled by the signal in `delay`.
         state.queue.clear();
         state.strictTicks.length = 0;
         state.currentTick = 0;

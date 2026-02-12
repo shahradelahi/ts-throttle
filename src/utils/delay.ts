@@ -121,9 +121,9 @@ export const createDelayCalculator = (state: ThrottleState, options: Options): D
 export const updateTickRecord = (
   state: ThrottleState,
   tickRecord: { time: number; weight: number },
-  isWeighted: boolean
+  isWeighted: boolean,
+  actualTime = Date.now()
 ) => {
-  const actualTime = Date.now();
   if (isWeighted && tickRecord.time !== actualTime) {
     tickRecord.time = actualTime;
     const index = state.strictTicks.indexOf(tickRecord);

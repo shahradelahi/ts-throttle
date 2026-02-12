@@ -41,6 +41,7 @@
   },
   "prettier": "@shahrad/prettier-config",
   "dependencies": {
+    "@se-oss/delay": "^1.1.0",
     "abort-signal": "^1.0.0"
   },
   "devDependencies": {
