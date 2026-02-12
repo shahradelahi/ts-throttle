@@ -143,14 +143,11 @@ export const throttle = <F extends AnyFunction>(
     get: () => state.queue.size,
   });
 
-  // The `registerThrottledFunction` logic is now handled by `manageLifecycle`.
-  // The `setupSignal` call is replaced with the following block.
   if (resolvedOptions.signal) {
     Abort.manageLifecycle({
       signal: resolvedOptions.signal,
-      target: throttled, // The throttled function is the target object
+      target: throttled,
       onAbort: () => {
-        // We just clear the references. Rejection is handled by the signal in `delay`.
         state.queue.clear();
         state.strictTicks.length = 0;
         state.currentTick = 0;
@@ -162,4 +159,5 @@ export const throttle = <F extends AnyFunction>(
   return throttled as ThrottledFunction<F>;
 };
 
+export type { AnyFunction, Options, ThrottledFunction } from './typings';
 export default throttle;
