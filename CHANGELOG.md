@@ -1,5 +1,11 @@
 # @se-oss/throttle
 
+## 1.0.2
+
+### Patch Changes
+
+- b46bc59: Internal cleanup of redundant comments and export types from the main entry point for better consumer accessibility.
+
 ## 1.0.1
 
 ### Patch Changes
